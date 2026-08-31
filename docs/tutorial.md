@@ -27,7 +27,7 @@ Wire them like this:
 
 1. `[loadbang]` outlet to `[curve-editor]`'s inlet. This makes the curve appear the moment the patch opens.
 2. `[curve-editor]`'s left outlet to `[array set shape]`. Every time the curve changes, all 257 numbers get poured into the array.
-3. `[curve-editor]`'s right outlet to `[daw_storage shaper]`. The right outlet carries the raw state, and `daw_storage` remembers it when the patch or Live Set is saved.
+3. `[curve-editor]`'s right outlet to `[daw_storage shaper]`. The right outlet carries the raw state, and `daw_storage` remembers it when the patch or DAW project is saved.
 4. `[daw_storage shaper]`'s outlet to `[curve-editor]`'s inlet. On reopen, `daw_storage` replays the saved state here, so the shape comes back.
 
 Those are the same three cords from the help patch, plus the loadbang.
