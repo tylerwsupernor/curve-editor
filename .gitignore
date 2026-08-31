@@ -1,0 +1,8 @@
+.DS_Store
+*~
+PLAN.md
+smoke/
+docs/nasko-internals.md
+docs/nasko-reference.md
+docs/reference/
+docs/pd-lua-intro.md

@@ -1,0 +1,21 @@
+# Changelog
+
+## 1.1.2
+
+Help patch rebuild: every control is now a clickable button, grouped to match the test patch, the doc text is shortened for readability, and the four gestures are captioned next to the output graph they describe.
+
+## 1.1.1
+
+The grid density is settable. `gridsub N` on the first inlet sets the drawn divisions and the snap step together, so the ruler and the clicks agree at any density. `gridup` / `griddown` step it one per press for patch buttons, with a floor of 1 (frame only) and a ceiling of 50. `grid 0` is still the full off and the two stay independent. Density starts at 16 on every open, not saved, just like snap and the grid toggle. The grid lines are at 0.6 opacity now, so they read a bit thinner and quieter overall. Also fixed: three double-click bugs that could leave stuck or unremovable dots, found during testing.
+
+## 1.1
+
+The editor has a 10x10 grid shown behind the curve, it acts as the visual reference for the snap points. It's shown upon every open and `grid 1` / `grid 0` messages toggle it. Snap still starts off initially, so the two act independently from one another. The draw colors moved into one labeled block, so recoloring a copy for a host patch's palette means editing that block.
+
+## 1.0.1
+
+The editor is square now, 300x300 instead of 300x200, so the default diagonal is a true 45 degree line. Help patch and examples relaid out to fit.
+
+## 1.0.0
+
+First release. Curve editor object for plugdata: drag anchors, bend segments, double-click to add or remove points, snap messages, 257-value curve output, saving through daw_storage. Ships with a help patch, two examples, and a build tutorial.
