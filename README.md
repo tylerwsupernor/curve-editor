@@ -42,4 +42,4 @@ The curve leaves the left outlet as one list of 257 numbers between 0 and 1. Sca
 
 The curve segment math is adapted from Nasko's N-Curve Comp.
 
-A note on how this was made: I built this with a lot of help from an AI assistant. If that's not your thing, no hard feelings — it's an easy skip.
+A note on how this was made: I built this with a lot of help from an AI assistant. If that's not your thing, no hard feelings.
