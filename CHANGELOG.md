@@ -1,8 +1,12 @@
 # Changelog
 
+## 1.1.4
+
+Bipolar display. `bipolar 1` keeps the grid as it is and draws a bolder crosshair through the center, `bipolar 0` takes it off. It starts off, and `grid 0` hides it with the rest of the grid. Unlike snap and the grid, it saves with the shape. The state list ends with one extra number for it now, and the loader still reads the older lists without it. Help patch and test patch got the buttons.
+
 ## 1.1.3
 
-Bug fix: a short or malformed list into the first inlet could leave a partial curve behind. The loader now checks the whole list first. A wrong atom count or a non-number gets refused with one console line and the current curve stays standing. Out-of-range x and y values are clamped into 0–1, with a note on the console. Normal loads behave exactly as before, no new messages, no saved-format change.
+Bug fix: a short or malformed list into the first inlet could leave a partial curve behind. The loader now checks the whole list first. A wrong atom count or a non-number gets refused with one console line and the current curve stays standing. Out-of-range x and y values are clamped into 0-1, with a note on the console. Normal loads behave exactly as before, no new messages, no saved-format change.
 
 ## 1.1.2
 
@@ -14,7 +18,7 @@ The grid density is settable. `gridsub N` on the first inlet sets the drawn divi
 
 ## 1.1
 
-The editor has a 10x10 grid shown behind the curve, it acts as the visual reference for the snap points. It's shown upon every open and `grid 1` / `grid 0` messages toggle it. Snap still starts off initially, so the two act independently from one another. The draw colors moved into one labeled block, so recoloring a copy for a host patch's palette means editing that block.
+The editor has a 10x10 grid shown behind the curve, it acts as the visual reference for the snap points. It's shown on every open and `grid 1` / `grid 0` messages toggle it. Snap still starts off initially, so the two act independently from one another. The draw colors moved into one labeled block, so recoloring a copy for a host patch's palette means editing that block.
 
 ## 1.0.1
 

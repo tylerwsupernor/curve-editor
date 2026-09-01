@@ -1,6 +1,6 @@
 # Tutorial: build a waveshaper with curve-editor
 
-What we're building: a patch that plays a 110 Hz sine and redraws its waveform live from the curve. Drag the curve, the timbre changes. The finished version of this exact patch is `examples/waveshaper.pd`, so open it any time to compare. One order note: in a fresh plugdata session, open a patch from `src` first so the object loads before the example asks for it.
+What we're building: a patch that plays a 110 Hz sine and redraws its waveform live from the curve. Drag the curve, the timbre changes. The finished version of this exact patch is `examples/waveshaper.pd`, so open it any time to compare. The order matters on a first open. In a fresh plugdata session, open a patch from `src` first so the object loads before the example asks for it.
 
 This assumes the two files from the README install (`curve-editor.pd_lua` and `curve-editor-help.pd`) sit in the same folder as the patch you're about to make.
 
@@ -70,14 +70,14 @@ The curve is the waveshaper. Nothing else in the patch edits the sound.
 
 - The curve travels through the patch as 257 numbers between 0 and 1. Position 0 in the array is the curve at x=0, position 256 is the curve at x=1.
 - The reading side is one mapping: signal value in, table position out. Signal plus 1, times 128. A signal at -1 reads the left edge of the curve, a signal at 1 reads the right edge.
-- The writing side is the reverse: the curve height comes out between 0 and 1, and gets recentred to -1 to 1 before it hits the speaker.
+- The writing side is the reverse: the curve height comes out between 0 and 1, and gets recentered to -1 to 1 before it hits the speaker.
 - The same 0-to-1 output scales to anything. Multiply by 500 for a frequency range of 0 to 500 Hz. Use it as-is for amplitude. Route it anywhere a 0-to-1 number makes sense.
 
 ## 6. Saving and the extras
 
 - Saving goes through `[daw_storage]`, which is already wired. It works when the patch runs as a plugin, tested in Ableton Live. plugdata standalone does not restore the shape on reopen, that's a known limit.
 - A `snap 1` message into `[curve-editor]`'s inlet turns on a 1/10 grid for points and clicks and halves bend speed. `snap 0` turns it off. Snap starts off every time the patch opens.
-- A preset is a message box holding the state in `x y bend` triples. The preset box in `examples/waveshaper.pd` holds `0 0 0.75 0.5 0.5 0.75 1 1`: three points, each with an x and a y, and a bend value after each point except the last one.
+- A preset is a message box holding the state in `x y bend` triples. The preset box in `examples/waveshaper.pd` holds `0 0 0.75 0.5 0.5 0.75 1 1`: three points, each with an x and a y, and a bend value after each point except the last one. A state saved by the editor has one more number at the end, the bipolar flag: 1 shows the center crosshair, 0 hides it.
 
 ## Next
 

@@ -65,6 +65,7 @@ function curve_editor:initialize()
   self.snap_enabled = false
   self.grid_enabled = true
   self.gridsub = GRID_SUB_DEFAULT
+  self.bipolar = false
   self:interpolate_values()
   return true
 end
@@ -166,19 +167,33 @@ function curve_editor:output_state()
       n = n + 1; list[n] = self.curvatureOffsets[i] or 0.5
     end
   end
+  n = n + 1; list[n] = self.bipolar and 1 or 0
   self:outlet(2, "list", list)
 end
 
 -- State format: x1 y1 b1 x2 y2 b2 ... xN yN, so N points means 3N-1 atoms.
--- A loader that silently truncates or misreads a save is a trap, so every
--- load is sanitized: the atom count must fit the triple format, every atom
--- must be a number, x and y are clamped into 0-1, and parsing fills scratch
--- tables so a rejected load leaves the current curve standing.
+-- Newer saves carry one extra trailing atom, the bipolar display flag, so a
+-- list of 3N atoms is shape plus flag and a list of 3N-1 is an older save
+-- with the flag off. A loader that silently truncates or misreads a save is
+-- a trap, so every load is sanitized: the atom count must fit one of the two
+-- formats, every atom must be a number, x and y are clamped into 0-1, and
+-- parsing fills scratch tables so a rejected load leaves the current curve
+-- standing.
 function curve_editor:load_state(atoms)
   if not atoms or #atoms == 0 then return end
   local n = #atoms
+  local bipolar = false
+  if n % 3 == 0 then
+    local flag = tonumber(atoms[n])
+    if not flag then
+      pd.post("curve-editor: load rejected: atom " .. n .. " is not a number (bipolar flag)")
+      return
+    end
+    bipolar = flag ~= 0
+    n = n - 1
+  end
   if (n + 1) % 3 ~= 0 then
-    pd.post("curve-editor: load rejected: " .. n .. " atoms don't fit the x y bend triple format")
+    pd.post("curve-editor: load rejected: " .. #atoms .. " atoms don't fit the x y bend triple format")
     return
   end
   local n_points = (n + 1) // 3
@@ -211,6 +226,7 @@ function curve_editor:load_state(atoms)
   end
   pts[1].fixed = true
   pts[#pts].fixed = true
+  self.bipolar = bipolar
   self.points, self.curvatureOffsets = pts, curvs
   self:interpolate_values()
   self:output_curve()
@@ -378,6 +394,11 @@ function curve_editor:in_1_grid(atoms)
   self:repaint()
 end
 
+function curve_editor:in_1_bipolar(atoms)
+  self.bipolar = (tonumber(atoms[1]) or 0) ~= 0
+  self:repaint()
+end
+
 function curve_editor:in_1_gridsub(atoms)
   local n = floor(tonumber(atoms[1]) or GRID_SUB_DEFAULT)
   self.gridsub = clamp(n, 1, 50)
@@ -400,11 +421,12 @@ end
 
 -- ---- colors: edit these per plugin ----------------------------------------
 -- The only paint values a waveshaper-br0 recopy needs to touch. Match every
--- color to the host patch palette (there: Almost White 254,254,254 on navy).
+-- color to the host patch palette (Almost White 254,254,254 on navy).
 local COLORS = {
-  grid  = { 215, 218, 224, 0.6 },
-  curve = { 171, 177, 188 },
-  point = { 214, 217, 222 },
+  grid      = { 215, 218, 224, 0.6 },
+  crosshair = { 215, 218, 224 },
+  curve     = { 171, 177, 188 },
+  point     = { 214, 217, 222 },
 }
 
 local function use_color(g, c, alpha)
@@ -427,6 +449,15 @@ function curve_editor:paint(g)
       local hline = Path(INSET, INSET + t * dh)
       hline:line_to(INSET + dw, INSET + t * dh)
       g:stroke_path(hline, 1)
+    end
+    if self.bipolar then
+      use_color(g, COLORS.crosshair)
+      local vline = Path(INSET + dw / 2, INSET)
+      vline:line_to(INSET + dw / 2, INSET + dh)
+      g:stroke_path(vline, 2)
+      local hline = Path(INSET, INSET + dh / 2)
+      hline:line_to(INSET + dw, INSET + dh / 2)
+      g:stroke_path(hline, 2)
     end
   end
 

@@ -15,6 +15,8 @@
 #X msg 528 370 gridup;
 #X msg 584 370 griddown;
 #X msg 556 398 gridsub 16;
+#X msg 258 398 bipolar 1;
+#X msg 344 398 bipolar 0;
 #X text 60 15 curve-editor;
 #X text 400 270 Drag a dot to move it.;
 #X text 400 285 Drag between dots to bend.;
@@ -24,7 +26,8 @@
 #X text 60 444 Snap starts off and halves the bend speed.;
 #X text 60 460 Grid starts on at 16 divisions on every open.;
 #X text 60 476 gridsub N: exact divisions. Grid and snapping align.;
-#X text 60 508 Left: 257 values (0 to 1). Right: state for daw_storage.;
+#X text 60 492 bipolar 1 adds a bolder crosshair at the center.;
+#X text 60 508 Left: 257 values (0 to 1). Right: state for daw_storage, bipolar flag last.;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 1 1 3 0;
@@ -36,3 +39,5 @@
 #X connect 9 0 1 0;
 #X connect 10 0 1 0;
 #X connect 11 0 1 0;
+#X connect 12 0 1 0;
+#X connect 13 0 1 0;
