@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.3
+
+Bug fix: a short or malformed list into the first inlet could leave a partial curve behind. The loader now checks the whole list first. A wrong atom count or a non-number gets refused with one console line and the current curve stays standing. Out-of-range x and y values are clamped into 0–1, with a note on the console. Normal loads behave exactly as before, no new messages, no saved-format change.
+
 ## 1.1.2
 
 Help patch rebuild: every control is now a clickable button, grouped to match the test patch, the doc text is shortened for readability, and the four gestures are captioned next to the output graph they describe.

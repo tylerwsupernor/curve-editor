@@ -4,7 +4,7 @@ A curve editor for plugdata, written in Lua with pdlua. Place points, drag them 
 
 Plugdata doesn't have anything like this as a stock object. 'curve-editor' is designed to be a reusable building block: copy two files next to your patch, wire the inlets and outlets, and it slots in like any other Pd object.
 
-Status: version 1.1.2. Dragging, bending, double-click add and remove, live output while dragging, snap, grid with adjustable subdivision, and saving through `[daw_storage]` all work, verified in standalone and in plugin mode (tested in Ableton Live 12 on Mac). 
+Status: version 1.1.3. Dragging, bending, double-click add and remove, live output while dragging, snap, grid with adjustable subdivision, and saving through `[daw_storage]` all work, verified in standalone and in plugin mode (tested in Ableton Live 12 on Mac). 
 
 What ships: the object, a right-click help patch with every control as a clickable button, a self-test patch (`src/curve-editor-test.pd`), two example patches, and a step-by-step tutorial in [docs/tutorial.md](docs/tutorial.md).
 

@@ -169,26 +169,49 @@ function curve_editor:output_state()
   self:outlet(2, "list", list)
 end
 
+-- State format: x1 y1 b1 x2 y2 b2 ... xN yN, so N points means 3N-1 atoms.
+-- A loader that silently truncates or misreads a save is a trap, so every
+-- load is sanitized: the atom count must fit the triple format, every atom
+-- must be a number, x and y are clamped into 0-1, and parsing fills scratch
+-- tables so a rejected load leaves the current curve standing.
 function curve_editor:load_state(atoms)
-  if not atoms or #atoms < 2 then return end
-  self.points, self.curvatureOffsets = {}, {}
-  local i = 1
-  while i <= #atoms do
-    local x = tonumber(atoms[i])
-    local y = tonumber(atoms[i + 1])
-    if not x or not y then break end
-    binsert_points(self.points, { x = x, y = y })
-    if i + 2 <= #atoms then
-      self.curvatureOffsets[#self.points] = tonumber(atoms[i + 2]) or 0.5
-      i = i + 3
-    else
-      i = i + 2
+  if not atoms or #atoms == 0 then return end
+  local n = #atoms
+  if (n + 1) % 3 ~= 0 then
+    pd.post("curve-editor: load rejected: " .. n .. " atoms don't fit the x y bend triple format")
+    return
+  end
+  local n_points = (n + 1) // 3
+  local pts, curvs = {}, {}
+  local clamped = 0
+  for k = 1, n_points do
+    local ai = 3 * k - 2
+    local x = tonumber(atoms[ai])
+    local y = tonumber(atoms[ai + 1])
+    if not x or not y then
+      local bad = (not x) and ai or (ai + 1)
+      pd.post("curve-editor: load rejected: atom " .. bad .. " is not a number")
+      return
+    end
+    local cx, cy = clamp(x, 0, 1), clamp(y, 0, 1)
+    if cx ~= x then clamped = clamped + 1 end
+    if cy ~= y then clamped = clamped + 1 end
+    binsert_points(pts, { x = cx, y = cy })
+    if k < n_points then
+      local b = tonumber(atoms[ai + 2])
+      if not b then
+        pd.post("curve-editor: load rejected: atom " .. (ai + 2) .. " is not a number")
+        return
+      end
+      curvs[k] = b
     end
   end
-  if #self.points >= 1 then
-    self.points[1].fixed = true
-    self.points[#self.points].fixed = true
+  if clamped > 0 then
+    pd.post("curve-editor: clamped " .. clamped .. " out-of-range values on load")
   end
+  pts[1].fixed = true
+  pts[#pts].fixed = true
+  self.points, self.curvatureOffsets = pts, curvs
   self:interpolate_values()
   self:output_curve()
   self:output_state()
