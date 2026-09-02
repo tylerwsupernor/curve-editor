@@ -8,6 +8,7 @@
 #X coords 0 1 257 0 300 150 1;
 #X restore 400 100 graph;
 #X msg 270 370 0 1 0.8 1 0;
+#X msg 270 395 base 0 0 0.5 0.3 0.2 0.5 0.5 0.5 0.5 0.7 0.8 0.5 1 1;
 #X obj 480 50 phasor~ 0.5;
 #X obj 480 90 *~ 256;
 #X obj 480 130 tabread4~ curve-editor-lfo;
@@ -18,12 +19,13 @@
 #X connect 1 0 2 0;
 #X connect 1 1 3 0;
 #X connect 3 0 1 0;
-#X connect 5 0 1 0;
-#X connect 6 0 7 0;
+#X connect 6 0 1 0;
+#X connect 7 0 1 0;
 #X connect 7 0 8 0;
-#X connect 8 0 10 1;
-#X connect 9 0 10 0;
-#X connect 10 0 11 0;
+#X connect 8 0 9 0;
+#X connect 9 0 11 0;
+#X connect 10 0 11 1;
+#X connect 11 0 12 0;
 #X text 60 15 curve-editor as an LFO;
 #X text 60 405 Drag the curve to shape one cycle of a repeating envelope.;
 #X text 60 423 The curve values 0 to 1 set the volume of a 220 Hz tone.;

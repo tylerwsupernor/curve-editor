@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.5
+
+Base/Your Curve/Results compositing. `base <list>` on the first inlet loads a Base curve, `base clear` takes it off. With a Base loaded the output becomes Results(x) = Your Curve(Base(x)): the Base warps where along Your Curve each x lands, so a flat line reads flat, an untouched diagonal gives the Base exactly, and a preset gets bent, not redrawn. Until a base loads, Results is just Your Curve, so existing patches behave as before. Outlet 1 outputs Results, outlet 2 still saves Your Curve only. The test patch got `base clear` and three test-shape buttons to check the composite.
+
 ## 1.1.4
 
 Bipolar display. `bipolar 1` keeps the grid as it is and draws a bolder crosshair through the center, `bipolar 0` takes it off. It starts off, and `grid 0` hides it with the rest of the grid. Unlike snap and the grid, it saves with the shape. The state list ends with one extra number for it now, and the loader still reads the older lists without it. Help patch and test patch got the buttons.

@@ -52,7 +52,18 @@ function curve_editor:initialize()
     { x = 1, y = 1, fixed = true },
   }
   self.curvatureOffsets = { 0.5 }
+  self.base_points = {
+    { x = 0, y = 0, fixed = true },
+    { x = 1, y = 1, fixed = true },
+  }
+  self.base_curvatureOffsets = { 0.5 }
+  -- Nothing has been layered under Your Curve yet. Until a base message
+  -- arrives, Results must equal Your Curve exactly so the output matches
+  -- what was drawn, as it did before 1.1.5.
+  self.has_base = false
   self.current_values = {}
+  self.base_values = {}
+  self.results_values = {}
   self.dragging = nil
   self.drag_start_y = nil
   self.drag_start_offset = nil
@@ -70,10 +81,7 @@ function curve_editor:initialize()
   return true
 end
 
-function curve_editor:interpolate_values()
-  local pts = self.points
-  local curvs = self.curvatureOffsets
-  local vals = self.current_values
+local function interpolate_points(pts, curvs, vals)
   local N = NUM_SAMPLES
   local invN = 1 / (N - 1)
 
@@ -120,6 +128,39 @@ function curve_editor:interpolate_values()
   end
 end
 
+function curve_editor:interpolate_values()
+  interpolate_points(self.points, self.curvatureOffsets, self.current_values)
+  interpolate_points(self.base_points, self.base_curvatureOffsets, self.base_values)
+  self:composite()
+end
+
+function curve_editor:composite()
+  local N = NUM_SAMPLES
+
+  if not self.has_base then
+    for i = 1, N do
+      self.results_values[i] = self.current_values[i] or 0
+    end
+    return
+  end
+
+  -- Trash 2 layer model: your curve is sampled at the base's height. The
+  -- base stops competing on output level and instead warps WHERE along your
+  -- curve each x lands. A flat drawn line therefore reads as flat, and an
+  -- untouched diagonal makes Results equal the Base exactly.
+  for i = 1, N do
+    local b = self.base_values[i] or 0
+    local f = b * (N - 1) + 1
+    local j = floor(f)
+    if j < 1 then j = 1 end
+    if j > N - 1 then j = N - 1 end
+    local frac = f - j
+    local a = self.current_values[j] or 0
+    local c = self.current_values[j + 1] or a
+    self.results_values[i] = a + (c - a) * frac
+  end
+end
+
 function curve_editor:tick_update()
   if self.glmetro_pending == false then return end
   self.globalmetro:delay(8)
@@ -151,7 +192,7 @@ end
 function curve_editor:output_curve()
   local list = {}
   for i = 1, NUM_SAMPLES do
-    list[i] = self.current_values[i]
+    list[i] = self.results_values[i]
   end
   list[NUM_SAMPLES + 1] = list[NUM_SAMPLES]
   self:outlet(1, "list", list)
@@ -231,6 +272,60 @@ function curve_editor:load_state(atoms)
   self:interpolate_values()
   self:output_curve()
   self:output_state()
+  self:repaint()
+end
+
+function curve_editor:load_base_state(atoms)
+  if not atoms or #atoms == 0 then return end
+  local n = #atoms
+  local bipolar = false
+  if n % 3 == 0 then
+    local flag = tonumber(atoms[n])
+    if not flag then
+      pd.post("curve-editor: base load rejected: atom " .. n .. " is not a number (bipolar flag)")
+      return
+    end
+    bipolar = flag ~= 0
+    n = n - 1
+  end
+  if (n + 1) % 3 ~= 0 then
+    pd.post("curve-editor: base load rejected: " .. #atoms .. " atoms don't fit the x y bend triple format")
+    return
+  end
+  local n_points = (n + 1) // 3
+  local pts, curvs = {}, {}
+  local clamped = 0
+  for k = 1, n_points do
+    local ai = 3 * k - 2
+    local x = tonumber(atoms[ai])
+    local y = tonumber(atoms[ai + 1])
+    if not x or not y then
+      local bad = (not x) and ai or (ai + 1)
+      pd.post("curve-editor: base load rejected: atom " .. bad .. " is not a number")
+      return
+    end
+    local cx, cy = clamp(x, 0, 1), clamp(y, 0, 1)
+    if cx ~= x then clamped = clamped + 1 end
+    if cy ~= y then clamped = clamped + 1 end
+    binsert_points(pts, { x = cx, y = cy })
+    if k < n_points then
+      local b = tonumber(atoms[ai + 2])
+      if not b then
+        pd.post("curve-editor: base load rejected: atom " .. (ai + 2) .. " is not a number")
+        return
+      end
+      curvs[k] = b
+    end
+  end
+  if clamped > 0 then
+    pd.post("curve-editor: clamped " .. clamped .. " out-of-range values on base load")
+  end
+  pts[1].fixed = true
+  pts[#pts].fixed = true
+  self.base_points, self.base_curvatureOffsets = pts, curvs
+  self.has_base = true
+  self:interpolate_values()
+  self:output_curve()
   self:repaint()
 end
 
@@ -399,6 +494,22 @@ function curve_editor:in_1_bipolar(atoms)
   self:repaint()
 end
 
+function curve_editor:in_1_base(atoms)
+  if atoms[1] == "clear" then
+    self.base_points = {
+      { x = 0, y = 0, fixed = true },
+      { x = 1, y = 1, fixed = true },
+    }
+    self.base_curvatureOffsets = { 0.5 }
+    self.has_base = false
+    self:interpolate_values()
+    self:output_curve()
+    self:repaint()
+    return
+  end
+  self:load_base_state(atoms)
+end
+
 function curve_editor:in_1_gridsub(atoms)
   local n = floor(tonumber(atoms[1]) or GRID_SUB_DEFAULT)
   self.gridsub = clamp(n, 1, 50)
@@ -427,6 +538,7 @@ local COLORS = {
   crosshair = { 215, 218, 224 },
   curve     = { 171, 177, 188 },
   point     = { 214, 217, 222 },
+  results   = { 180, 160, 200, 0.7 },
 }
 
 local function use_color(g, c, alpha)
@@ -461,11 +573,19 @@ function curve_editor:paint(g)
     end
   end
 
-  local vals = self.current_values
   local N = NUM_SAMPLES
   local inv = 1 / (N - 1)
 
-  local p = Path(INSET, INSET + (1 - (vals[1] or 0)) * dh)
+  local rvals = self.results_values
+  local p = Path(INSET, INSET + (1 - (rvals[1] or 0)) * dh)
+  for i = 2, N do
+    p:line_to(INSET + (i - 1) * inv * dw, INSET + (1 - (rvals[i] or 0)) * dh)
+  end
+  use_color(g, COLORS.results)
+  g:stroke_path(p, 3)
+
+  local vals = self.current_values
+  p = Path(INSET, INSET + (1 - (vals[1] or 0)) * dh)
   for i = 2, N do
     p:line_to(INSET + (i - 1) * inv * dw, INSET + (1 - (vals[i] or 0)) * dh)
   end
