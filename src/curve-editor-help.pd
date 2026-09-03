@@ -29,8 +29,8 @@
 #X text 60 460 Grid starts on at 16 divisions on every open.;
 #X text 60 476 gridsub N: exact divisions. Grid and snapping align.;
 #X text 60 492 bipolar 1 adds a bolder crosshair at the center.;
-#X text 60 508 Left: 257 values (0 to 1). Right: state for daw_storage, bipolar flag last.;
-#X text 60 524 base <list> loads a Base curve for compositing (Results = Base * (1-w) + Your * w).
+#X text 60 508 Left: 257 values (0 to 1). Right: state for daw_storage. Bipolar flag last.;
+#X text 60 524 base <list> loads a Base curve for compositing. Results = Your Curve(Base(x)).;
 #X connect 0 0 1 0;
 #X connect 1 0 2 0;
 #X connect 1 1 3 0;
@@ -45,5 +45,4 @@
 #X connect 12 0 1 0;
 #X connect 13 0 1 0;
 #X connect 14 0 1 0;
-#X connect 15 0 1 0;
 #X connect 15 0 1 0;

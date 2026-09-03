@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.6
+
+Bug fix: a few small defects in the help patch, none of them in the object itself. The base clear button had a doubled cord and the last doc line still taught the dead blend formula.
+
 ## 1.1.5
 
 Base/Your Curve/Results compositing. `base <list>` on the first inlet loads a Base curve, `base clear` takes it off. With a Base loaded the output becomes Results(x) = Your Curve(Base(x)): the Base warps where along Your Curve each x lands, so a flat line reads flat, an untouched diagonal gives the Base exactly, and a preset gets bent, not redrawn. Until a base loads, Results is just Your Curve, so existing patches behave as before. Outlet 1 outputs Results, outlet 2 still saves Your Curve only. The test patch got `base clear` and three test-shape buttons to check the composite.
