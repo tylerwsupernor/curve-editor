@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
-Opt-in full-range waveshaping. `[curve-editor fullrange]` or `fullrange 1` changes both axes to -1..+1 and emits 513 samples while the default editor remains the original 0..1, 257-sample building block. Full-range mode starts with top-right editing and a non-editable origin-mirrored ghost; `bipolar 1` unlocks both halves for asymmetric curves, and `bipolar 0` rebuilds the negative half from the positive curve. Old state loads symmetrically, new state carries an explicit numeric version/range header, and `size W H` can enlarge an instance without changing the default 300x300 footprint.
+Opt-in full-range mode for patches that need bipolar waveshaping. The default editor stays the original 0..1, 257-sample building block, and nothing changes until a patch asks: `[curve-editor fullrange]` or `fullrange 1` switches both axes to -1..+1 and emits 513 samples. Full-range mode starts with top-right editing and a non-editable origin-mirrored ghost; `bipolar 1` unlocks both halves for asymmetric curves, and `bipolar 0` rebuilds the negative half from the positive curve. Old state loads symmetrically, new state carries an explicit numeric version/range header, and `size W H` can enlarge an instance without changing the default 300x300 footprint.
 
 ## 1.1.7
 
