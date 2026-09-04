@@ -1,10 +1,10 @@
 # curve-editor
 
-A curve editor for plugdata, written in Lua with pdlua. Place points, drag them around, bend segments between them. Think Serum's LFOs, but living inside your plugdata patch. The editor sends the finished curve out as 257 numbers you can pipe straight into a Pd array, so one shape can drive an LFO, a waveshaper, an envelope, or anything you're building that needs a curve.
+A curve editor for plugdata, written in Lua with pdlua. Place points, drag them around, bend segments between them. Think Serum's LFOs, but living inside your plugdata patch. The editor sends the finished curve out as a list you can pipe straight into a Pd array, so one shape can drive an LFO, a waveshaper, an envelope, or anything you're building that needs a curve.
 
 Plugdata doesn't have anything like this as a stock object. 'curve-editor' is a reusable building block. Copy two files next to your patch, wire the inlets and outlets, and it slots in like any other Pd object.
 
-Dragging, bending, double-click add and remove, live output while dragging, snap, grid with adjustable subdivision, a bipolar center crosshair, and saving through `[daw_storage]` all work, verified in standalone and in plugin mode (tested in Ableton Live 12 on Mac). 
+Dragging, bending, double-click add and remove, live output while dragging, snap, grid with adjustable subdivision, opt-in full-range waveshaping, and saving through `[daw_storage]` all work. The legacy 0..1 editor stays the default, so existing envelope, LFO, and curve patches keep their original behavior.
 
 What ships: the object, a right-click help patch with every control as a clickable button, a self-test patch (`src/curve-editor-test.pd`), two example patches, and a step-by-step tutorial in [docs/tutorial.md](docs/tutorial.md).
 
@@ -28,18 +28,23 @@ The editor displays a grid behind the curve as a visual reference on open by def
 
 Grid subdivision is 16 by default. `gridsub N` sets the number of subdivisions and the snap step together manually, `gridup` / `griddown` add or remove steps one at a time when clicked.
 
-Bipolar display starts off. `bipolar 1` keeps the grid as it is and draws a bolder crosshair through the center, `bipolar 0` takes the crosshair back off. It's part of the grid, so `grid 0` hides it too.
+Bipolar display starts off in the legacy editor. `bipolar 1` keeps the grid as it is and draws a bolder crosshair through the center, `bipolar 0` takes the crosshair back off. It's part of the grid, so `grid 0` hides it too.
+
+`[curve-editor fullrange]` opts into the waveshaping editor at creation. `fullrange 1` converts an existing instance at runtime, and `fullrange 0` returns it to the legacy editor. In full range, both axes cover -1..+1 and the output grows to 513 normalized samples: 256 below zero, the exact zero sample, and 256 above it. Normalized output values still run from 0 to 1, where 0, 0.5, and 1 represent -1, 0, and +1.
+
+Full-range editing starts symmetric. `bipolar 0` keeps only the top-right quadrant editable and shows the origin-reflected negative half as a dim ghost. The point at zero input stays fixed horizontally but can move upward, with its ghost endpoint moving equally downward. `bipolar 1` releases that point in both directions and makes the complete graph independently editable. Switching back to `bipolar 0` intentionally discards negative-side edits and rebuilds them from the positive side. Returning to the legacy editor uses the current positive half.
+
+`size W H` resizes a full-range editor instance in pixels. A single `size N` value makes it square. The default remains 300x300, and the chosen full-range size is saved with the curve.
 
 The grid draws at 0.6 opacity. Grid opacity and color are set in `curve-editor.pd_lua`, edit the file to match your patch. The crosshair gets its own color entry in the same block.
 
-The curve leaves the left outlet as one list of 257 numbers between 0 and 1. Scale them where you use them. The right outlet sends the raw state as `x y bend` triples with the bipolar flag at the end, and a message box holding that same format works as a preset. Both examples include one. Right-click the object and select "Help" to reveal the built-in guide.
+The legacy curve leaves the left outlet as 257 numbers between 0 and 1. Full-range mode sends 513. The right outlet sends the raw state for `[daw_storage]`. Legacy state keeps the old `x y bend` format and trailing display flag. Full-range state starts with the numeric header `-271828 2 1`, followed by the bipolar mode, width, height, and the complete curve as `x y bend` data. The header explicitly marks state version 2 and the full-range coordinate model while keeping the whole message safe for ordinary Pd list storage.
 
 ## Current limitations
 
 - plugdata standalone does not restore the saved shape on reopen. Saving and restoring the curve shape works in DAWs/presets when in plugin mode.
-- Snap, grid toggle, and grid subdivision all reset to defaults on every open. The bipolar display saves with the shape through the state list instead, so it comes back wherever the curve does.
+- Snap, grid toggle, and grid subdivision reset to defaults on every open. Full-range mode, bipolar mode, and full-range size save with the shape through the state list, so they come back wherever the curve does.
 - The editor has no Shift-to-snap function (like in Serum) because plugdata never passes modifier keys to pdlua mouse handlers. A host patch can fake it though with `[key]` and `[keyup]` sending `snap 1` and `snap 0` to the inlet if you want.
-- Fixed at 300x300, no size message.
 - Two closely-spaced dots are only grabbable from their outer edges to prevent sticking.
 
 The curve segment math is adapted from Nasko's N-Curve Comp.

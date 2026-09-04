@@ -7,8 +7,8 @@ This assumes the two files from the README install (`curve-editor.pd_lua` and `c
 ## 1. The patch and the array
 
 1. Save a new empty patch in that folder.
-2. Put an array in it: Put menu, then Array. Name it `shape`, size 257 points. Leave the other settings alone.
-3. Why 257: the editor samples the curve at 257 evenly spaced points (2^8 + 1), covering x = 0 to x = 1 in 256 equal steps. That gives you both endpoints exactly, which is the standard convention for wavetable loops — the last value lands precisely on x = 1 with no rounding, so the shape loops without a click at the seam.
+2. Put an array in it: Put menu, then Array. Name it `shape`, size 513 points. Leave the other settings alone.
+3. Why 513: the full-range editor keeps 256 intervals on each side of zero, plus one exact center sample. The normalized array still covers 0 to 1 internally, but it represents a bipolar -1 to +1 transfer function.
 
 Array names are shared across every open patch in the session. If something else already uses `shape`, pick another name. The examples use long names like `curve-editor-shape` for exactly this reason.
 
@@ -17,7 +17,7 @@ Array names are shared across every open patch in the session. If something else
 Create four objects. In plugdata that's the Put menu, then Object, or the Object tool in the toolbar.
 
 - `[loadbang]`
-- `[curve-editor]`
+- `[curve-editor fullrange]`
 - `[array set shape]`
 - `[daw_storage shaper]`
 
@@ -25,10 +25,10 @@ The word `shaper` after `daw_storage` is just an id, any word works.
 
 Wire them like this:
 
-1. `[loadbang]` outlet to `[curve-editor]`'s inlet. This makes the curve appear the moment the patch opens.
-2. `[curve-editor]`'s left outlet to `[array set shape]`. Every time the curve changes, all 257 numbers get poured into the array.
-3. `[curve-editor]`'s right outlet to `[daw_storage shaper]`. The right outlet carries the raw state, and `daw_storage` remembers it when the patch or DAW project is saved.
-4. `[daw_storage shaper]`'s outlet to `[curve-editor]`'s inlet. On reopen, `daw_storage` replays the saved state here, so the shape comes back.
+1. `[loadbang]` outlet to `[curve-editor fullrange]`'s inlet. The creation argument makes this a full-range waveshaping editor, and the bang sends its initial curve to the array.
+2. `[curve-editor fullrange]`'s left outlet to `[array set shape]`. Every time the curve changes, all 513 numbers get poured into the array.
+3. `[curve-editor fullrange]`'s right outlet to `[daw_storage shaper]`. The right outlet carries the raw state, and `daw_storage` remembers it when the patch or DAW project is saved.
+4. `[daw_storage shaper]`'s outlet to `[curve-editor fullrange]`'s inlet. On reopen, `daw_storage` replays the saved state here, so the shape comes back.
 
 Those are the same three cords from the help patch, plus the loadbang.
 
@@ -39,7 +39,7 @@ Create these eight objects, top to bottom, and connect each one's outlet to the 
 ```
 [osc~ 110]
 [+~ 1]
-[*~ 128]
+[*~ 256]
 [tabread4~ shape]
 [-~ 0.5]
 [*~ 2]
@@ -51,7 +51,7 @@ What each one is for:
 
 1. `[osc~ 110]` makes the test tone, a sine swinging between -1 and 1.
 2. `[+~ 1]` slides that swing up to 0 to 2, because array positions can't be negative.
-3. `[*~ 128]` turns 0 to 2 into 0 to 256. Those are positions in the array.
+3. `[*~ 256]` turns 0 to 2 into 0 to 512. Those are positions in the array.
 4. `[tabread4~ shape]` reads the curve at that position and outputs its height, which sits between 0 and 1. This is the box where the sine becomes the curve.
 5. `[-~ 0.5]` and `[*~ 2]` slide and stretch 0 to 1 back down to -1 to 1, the range a speaker wants.
 6. `[*~ 0.5]` keeps the volume polite.
@@ -62,14 +62,15 @@ What each one is for:
 1. Turn your system volume down first.
 2. Turn audio on in plugdata if it isn't already.
 3. Press Cmd+E to enter run mode.
-4. Drag the curve around. The tone follows it live. Bending the middle of the curve hard makes obvious distortion, and a flat middle squashes the note small.
+4. Drag the top-right curve around. The dim bottom-left line follows as its exact opposite-polarity mirror, and the tone follows both halves live.
+5. Send `bipolar 1` to unlock the whole graph. Negative-side edits then stay independent until `bipolar 0` deliberately rebuilds that side from the positive curve.
 
 The curve is the waveshaper. Nothing else in the patch edits the sound.
 
 ## 5. The values, spelled out
 
-- The curve travels through the patch as 257 numbers between 0 and 1. Position 0 in the array is the curve at x=0, position 256 is the curve at x=1.
-- The reading side is one mapping: signal value in, table position out. Signal plus 1, times 128. A signal at -1 reads the left edge of the curve, a signal at 1 reads the right edge.
+- The curve travels through the patch as 513 normalized numbers between 0 and 1. Positions 0, 256, and 512 represent bipolar coordinates -1, 0, and +1.
+- The reading side is one mapping: signal value in, table position out. Signal plus 1, times 256. A signal at -1 reads the left edge of the curve, a signal at 1 reads the right edge.
 - The writing side is the reverse: the curve height comes out between 0 and 1, and gets recentered to -1 to 1 before it hits the speaker.
 - The same 0-to-1 output scales to anything. Multiply by 500 for a frequency range of 0 to 500 Hz. Use it as-is for amplitude. Route it anywhere a 0-to-1 number makes sense.
 
@@ -77,7 +78,7 @@ The curve is the waveshaper. Nothing else in the patch edits the sound.
 
 - Saving goes through `[daw_storage]`, which is already wired. It works when the patch runs as a plugin, tested in Ableton Live. plugdata standalone does not restore the shape on reopen, that's a known limit.
 - A `snap 1` message into `[curve-editor]`'s inlet turns on a 1/10 grid for points and clicks and halves bend speed. `snap 0` turns it off. Snap starts off every time the patch opens.
-- A preset is a message box holding the state in `x y bend` triples. The preset box in `examples/waveshaper.pd` holds `0 0 0.75 0.5 0.5 0.75 1 1`: three points, each with an x and a y, and a bend value after each point except the last one. A state saved by the editor has one more number at the end, the bipolar flag: 1 shows the center crosshair, 0 hides it.
+- The old positive-only `x y bend` preset format still loads. In a full-range editor it becomes the positive half and gets mirrored. New saved state starts with `-271828 2 1`, then stores the bipolar mode, editor size, and complete curve.
 
 ## Next
 

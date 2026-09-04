@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+Opt-in full-range waveshaping. `[curve-editor fullrange]` or `fullrange 1` changes both axes to -1..+1 and emits 513 samples while the default editor remains the original 0..1, 257-sample building block. Full-range mode starts with top-right editing and a non-editable origin-mirrored ghost; `bipolar 1` unlocks both halves for asymmetric curves, and `bipolar 0` rebuilds the negative half from the positive curve. Old state loads symmetrically, new state carries an explicit numeric version/range header, and `size W H` can enlarge an instance without changing the default 300x300 footprint.
+
 ## 1.1.7
 
 Bug fix: the output curve was one real sample short. The editor drew 256 samples spread a little too wide and copied the last one again to fill slot 257, so curves read about 0.4% steeper than drawn and went flat on the final step. It now samples 257 real points at even 1/256 spacing, both endpoints exact, so a straight line is a true diagonal all the way out. Same 257 numbers, same saved format, but every output value moves a small amount. A small edit in the tutorial to keep it consistent.
