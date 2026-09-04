@@ -1,7 +1,7 @@
 local curve_editor = pd.Class:new():register("curve-editor")
 
 local INSET = 12
-local NUM_SAMPLES = 256
+local NUM_SAMPLES = 257
 local CLICK_RADIUS_SQ = 0.0025
 local SNAP_EPS = 1e-9
 local AMBIG_FRACTION = 0.15
@@ -194,7 +194,6 @@ function curve_editor:output_curve()
   for i = 1, NUM_SAMPLES do
     list[i] = self.results_values[i]
   end
-  list[NUM_SAMPLES + 1] = list[NUM_SAMPLES]
   self:outlet(1, "list", list)
 end
 

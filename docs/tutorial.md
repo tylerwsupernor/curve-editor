@@ -8,7 +8,7 @@ This assumes the two files from the README install (`curve-editor.pd_lua` and `c
 
 1. Save a new empty patch in that folder.
 2. Put an array in it: Put menu, then Array. Name it `shape`, size 257 points. Leave the other settings alone.
-3. Why 257: the editor draws the curve as 256 steps across the width, plus one extra that repeats the last value, so the shape loops without a click at the seam.
+3. Why 257: the editor samples the curve at 257 evenly spaced points (2^8 + 1), covering x = 0 to x = 1 in 256 equal steps. That gives you both endpoints exactly, which is the standard convention for wavetable loops — the last value lands precisely on x = 1 with no rounding, so the shape loops without a click at the seam.
 
 Array names are shared across every open patch in the session. If something else already uses `shape`, pick another name. The examples use long names like `curve-editor-shape` for exactly this reason.
 

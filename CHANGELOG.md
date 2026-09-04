@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.7
+
+Bug fix: the output curve was one real sample short. The editor drew 256 samples spread a little too wide and copied the last one again to fill slot 257, so curves read about 0.4% steeper than drawn and went flat on the final step. It now samples 257 real points at even 1/256 spacing, both endpoints exact, so a straight line is a true diagonal all the way out. Same 257 numbers, same saved format, but every output value moves a small amount. A small edit in the tutorial to keep it consistent.
+
 ## 1.1.6
 
 Bug fix: a few small defects in the help patch, none of them in the object itself. The base clear button had a doubled cord and the last doc line still taught the dead blend formula.
