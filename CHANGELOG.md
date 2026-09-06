@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+Help patch rebuild and a comment fix, no behavior change. The color block header in `curve-editor.pd_lua` no longer names a specific host patch or palette. The help patch covers every inlet message with clickable buttons in labeled groups, corrects the end-dot text (pinned sideways, free vertically), and wires up the size demo, which was never connected.
+
 ## 1.2.0
 
 Opt-in full-range mode for patches that need bipolar waveshaping. The default editor stays the original 0..1, 257-sample building block, and nothing changes until a patch asks: `[curve-editor fullrange]` or `fullrange 1` switches both axes to -1..+1 and emits 513 samples. Full-range mode starts with top-right editing and a non-editable origin-mirrored ghost; `bipolar 1` unlocks both halves for asymmetric curves, and `bipolar 0` rebuilds the negative half from the positive curve. Old state loads symmetrically, new state carries an explicit numeric version/range header, and `size W H` can enlarge an instance without changing the default 300x300 footprint.

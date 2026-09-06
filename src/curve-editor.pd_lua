@@ -787,8 +787,8 @@ function curve_editor:in_1_list(atoms)
 end
 
 -- ---- colors: edit these per plugin ----------------------------------------
--- The only paint values a waveshaper-br0 recopy needs to touch. Match every
--- color to the host patch palette (Almost White 254,254,254 on navy).
+-- The paint values to adjust when adding this curve editor into your patch.
+-- You can adjust the colors here to match your patch's color palette.
 local COLORS = {
   grid      = { 215, 218, 224, 0.6 },
   crosshair = { 215, 218, 224 },
