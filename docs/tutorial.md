@@ -1,6 +1,6 @@
 # Tutorial: build a waveshaper with curve-editor
 
-What we're building: a patch that plays a 110 Hz sine and redraws its waveform live from the curve. Drag the curve, the timbre changes. The finished version of this exact patch is `examples/waveshaper.pd`, so open it any time to compare. The order matters on a first open. In a fresh plugdata session, open a patch from `src` first so the object loads before the example asks for it.
+This patch plays a 110 Hz sine and redraws its waveform from the curve. Moving the curve changes the timbre. The finished example is `examples/waveshaper.pd`; its `declare -path ../src` finds the editor in a fresh plugdata session. The tutorial builds the same signal chain, with the editor files beside the patch.
 
 This assumes the two files from the README install (`curve-editor.pd_lua` and `curve-editor-help.pd`) sit in the same folder as the patch you're about to make.
 
@@ -77,8 +77,9 @@ The curve is the waveshaper. Nothing else in the patch edits the sound.
 ## 6. Saving and the extras
 
 - Saving goes through `[daw_storage]`, which is already wired. It works when the patch runs as a plugin, tested in Ableton Live. plugdata standalone does not restore the shape on reopen, that's a known limit.
-- A `snap 1` message into `[curve-editor]`'s inlet turns on a 1/10 grid for points and clicks and halves bend speed. `snap 0` turns it off. Snap starts off every time the patch opens.
-- The old positive-only `x y bend` preset format still loads. In a full-range editor it becomes the positive half and gets mirrored. New saved state starts with `-271828 2 1`, then stores the bipolar mode, editor size, and complete curve.
+- A `snap 1` message enables point snapping at the current grid subdivision and halves bend speed. `snap 0` turns it off. The default subdivision is 16. Snap starts off every time the patch opens.
+- The old positive-only `x y bend` preset format still loads. In a full-range editor it becomes the positive half and gets mirrored. New saved state starts with `-271828 3`, then stores range, bipolar mode, editor size, point count, and all segment controls. Version-2 full-range presets remain loadable.
+- `type 2 square` changes the default positive segment to Square. `bend 2 0.5` sets its maximum density. The six type buttons and bend presets in the example target that segment; each type retains its own setting. [Segment types](segment-types.md) records the full interface and saved format.
 
 ## Next
 

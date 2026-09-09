@@ -4,8 +4,11 @@ local INSET = 12
 local LEGACY_SAMPLES = 257
 local FULL_RANGE_SAMPLES = 513
 local STATE_MAGIC = -271828
-local STATE_VERSION = 2
+local STATE_VERSION = 3
 local FULL_RANGE_CODE = 1
+local TYPE_NAMES = { "tension", "linear", "square", "triangle", "sine", "stairs" }
+local TYPE_CODES = {}
+for i, name in ipairs(TYPE_NAMES) do TYPE_CODES[name] = i - 1 end
 local CLICK_RADIUS_SQ = 0.0025
 local SNAP_EPS = 1e-9
 local AMBIG_FRACTION = 0.15
@@ -50,39 +53,65 @@ local function copy_values(values)
   return result
 end
 
-local function positive_half(points, curvs)
-  local pts, bends = {}, {}
+local function new_segment()
+  return { type = "tension", linear = 0.5, square = 0.5, triangle = 0, sine = 0, stairs = 0.5 }
+end
+
+local function copy_segment(segment, reflected)
+  local result = new_segment()
+  if segment then
+    for key, value in pairs(segment) do result[key] = value end
+  end
+  if reflected then result.linear = 1 - result.linear end
+  return result
+end
+
+local function default_segments(points)
+  local segments = {}
+  for i = 1, #points - 1 do segments[i] = new_segment() end
+  return segments
+end
+
+local function positive_half(points, curvs, segments)
+  local pts, bends, metadata = {}, {}, {}
   local first = nil
   for i, pt in ipairs(points) do
-    if pt.x >= 0.5 - SNAP_EPS then
+    if pt.x >= 0.5 then
       if not first then first = i end
       pts[#pts + 1] = {
         x = pt.x,
         y = pt.y,
         fixed = pt.fixed,
-        center = same(pt.x, 0.5),
+        center = pt.x == 0.5,
       }
     end
   end
   if first then
-    for i = first, #points - 1 do bends[#bends + 1] = curvs[i] or 0.5 end
+    for i = first, #points - 1 do
+      bends[#bends + 1] = curvs[i] or 0.5
+      metadata[#metadata + 1] = copy_segment(segments and segments[i])
+    end
   end
-  return pts, bends
+  return pts, bends, metadata
 end
 
-local function mirror_positive(points, curvs)
-  local pos, pos_curvs = positive_half(points, curvs)
-  if #pos == 0 or not same(pos[1].x, 0.5) then
+local function ensure_positive_center(pos, bends, segments)
+  if #pos == 0 or pos[1].x ~= 0.5 then
     table.insert(pos, 1, { x = 0.5, y = 0.5, fixed = true, center = true })
-    table.insert(pos_curvs, 1, 0.5)
+    table.insert(bends, 1, 0.5)
+    table.insert(segments, 1, new_segment())
   else
     pos[1].x = 0.5
-    pos[1].y = clamp(pos[1].y, 0.5, 1)
     pos[1].fixed, pos[1].center = true, true
   end
-  for i = 2, #pos do pos[i].y = clamp(pos[i].y, 0.5, 1) end
+end
 
-  local pts, bends = {}, {}
+local function mirror_positive(points, curvs, segments)
+  local pos, pos_curvs, pos_segments = positive_half(points, curvs, segments)
+  ensure_positive_center(pos, pos_curvs, pos_segments)
+  for _, pt in ipairs(pos) do pt.y = clamp(pt.y, 0.5, 1) end
+
+  local pts, bends, metadata = {}, {}, {}
   for i = #pos, 2, -1 do
     local pt = pos[i]
     pts[#pts + 1] = {
@@ -91,15 +120,17 @@ local function mirror_positive(points, curvs)
       fixed = i == #pos,
     }
     bends[#bends + 1] = 1 - (pos_curvs[i - 1] or 0.5)
+    metadata[#metadata + 1] = copy_segment(pos_segments[i - 1], true)
   end
   for _, pt in ipairs(pos) do pts[#pts + 1] = pt end
   for _, bend in ipairs(pos_curvs) do bends[#bends + 1] = bend end
+  for _, segment in ipairs(pos_segments) do metadata[#metadata + 1] = segment end
   pts[1].fixed = true
   pts[#pts].fixed = true
-  return pts, bends
+  return pts, bends, metadata
 end
 
-local function legacy_to_full(points, curvs)
+local function legacy_to_full(points, curvs, segments)
   local pos, bends = {}, copy_values(curvs)
   for i, pt in ipairs(points) do
     pos[i] = {
@@ -111,11 +142,12 @@ local function legacy_to_full(points, curvs)
   end
   pos[1].x, pos[1].y = 0.5, 0.5
   pos[1].fixed, pos[1].center = true, true
-  return mirror_positive(pos, bends)
+  return mirror_positive(pos, bends, segments)
 end
 
-local function full_to_legacy(points, curvs)
-  local pos, pos_curvs = positive_half(points, curvs)
+local function full_to_legacy(points, curvs, segments)
+  local pos, pos_curvs, pos_segments = positive_half(points, curvs, segments)
+  ensure_positive_center(pos, pos_curvs, pos_segments)
   local pts = {}
   for i, pt in ipairs(pos) do
     pts[i] = {
@@ -126,7 +158,7 @@ local function full_to_legacy(points, curvs)
   end
   pts[1].fixed = true
   pts[#pts].fixed = true
-  return pts, pos_curvs
+  return pts, pos_curvs, pos_segments
 end
 
 local function skew_m(m)
@@ -145,6 +177,7 @@ function curve_editor:initialize(_, atoms)
     { x = 1, y = 1, fixed = true },
   }
   self.curvatureOffsets = { 0.5 }
+  self.segments = { new_segment() }
   self.base_points = {
     { x = 0, y = 0, fixed = true },
     { x = 1, y = 1, fixed = true },
@@ -172,7 +205,7 @@ function curve_editor:initialize(_, atoms)
   self.full_range = false
   self.bipolar = false
   if atoms and atoms[1] == "fullrange" then
-    self.points, self.curvatureOffsets = legacy_to_full(self.points, self.curvatureOffsets)
+    self.points, self.curvatureOffsets, self.segments = legacy_to_full(self.points, self.curvatureOffsets, self.segments)
     self.base_points, self.base_curvatureOffsets = legacy_to_full(self.base_points, self.base_curvatureOffsets)
     self.full_range = true
   end
@@ -180,47 +213,85 @@ function curve_editor:initialize(_, atoms)
   return true
 end
 
-local function interpolate_points(pts, curvs, vals, N)
-  local invN = 1 / (N - 1)
+local function segment_count(segment)
+  local kind = segment.type
+  local h = segment[kind]
+  if kind == "square" then return 1 + floor(14 * (1 - abs(2 * h - 1)) + 0.5) end
+  if kind == "stairs" then return 2 + floor(9 * (1 - abs(2 * h - 1)) + 0.5) end
+  if kind == "triangle" or kind == "sine" then return 1 + 2 * floor(15 * h + 0.5) end
+  return 1
+end
 
-  if #pts < 2 then
-    for i = 1, N do vals[i] = 0 end
-    return
+local function segment_value(a, b, raw, segment, t)
+  t = clamp(t, 0, 1)
+  local ay, by = a.y, b.y
+  local kind = segment and segment.type or "tension"
+  if kind == "tension" then
+    local midpoint = 0.5 * (ay + by)
+    local d = raw - 0.5
+    local power = 1 + skew_m(abs(d) * 2) * (CURVE_POWER_MAX - 1)
+    local tn
+    if d >= 0 then tn = t ^ power else tn = 1 - (1 - t) ^ power end
+    local omt = 1 - tn
+    return omt * omt * ay + 2 * omt * tn * midpoint + tn * tn * by
   end
+  if t == 0 then return ay end
+  if t == 1 then return by end
+  if ay == by then return ay end
+  local value
+  if kind == "linear" then
+    local corner = by >= ay and segment.linear or 1 - segment.linear
+    value = t <= 0.5 and 2 * t * corner or corner + (2 * t - 1) * (1 - corner)
+  elseif kind == "triangle" then
+    value = 1 - abs((segment_count(segment) * t % 2) - 1)
+  elseif kind == "sine" then
+    value = (1 - math.cos(math.pi * segment_count(segment) * t)) * 0.5
+  elseif kind == "square" then
+    local q = 2 * segment_count(segment) * t
+    if same(q, floor(q + 0.5)) then
+      value = 0.5
+    else
+      value = (floor(q) + (segment.square >= 0.5 and 1 or 0)) % 2
+    end
+  elseif kind == "stairs" then
+    local count = segment_count(segment)
+    local lower = segment.stairs < 0.5
+    local bins = lower and count - 1 or count + 1
+    local q = bins * t
+    local j = floor(q)
+    if same(q, floor(q + 0.5)) then j = floor(q + 0.5) - 0.5 end
+    value = lower and (j + 0.5) / bins or j / count
+  end
+  return ay + (by - ay) * value
+end
 
+function curve_editor:segment_value(index, t)
+  if self.full_range and not self.bipolar and self.points[index + 1].x <= 0.5 then
+    index, t = #self.segments + 1 - index, 1 - t
+    return 1 - segment_value(self.points[index], self.points[index + 1], self.curvatureOffsets[index], self.segments[index], t)
+  end
+  return segment_value(self.points[index], self.points[index + 1], self.curvatureOffsets[index], self.segments[index], t)
+end
+
+local function interpolate_points(pts, curvs, vals, N, segments)
+  local invN = 1 / (N - 1)
+  for i = 1, N do vals[i] = (i - 1) * invN < pts[1].x and pts[1].y or pts[#pts].y end
   for seg = 1, #pts - 1 do
     local a, b = pts[seg], pts[seg + 1]
     local dx = b.x - a.x
-    if dx > 1e-9 then
-      local start_i = floor(a.x * (N - 1)) + 1
+    if dx > 0 then
+      local metadata = segments and segments[seg]
+      local tension = not metadata or metadata.type == "tension"
+      local previous_tension = not segments or seg == 1 or segments[seg - 1].type == "tension"
+      -- Legacy Tension neighbors overlap at floor(anchor * resolution).
+      -- New types own only samples inside their actual anchor interval.
+      local start_i = tension and previous_tension and floor(a.x * (N - 1)) + 1
+        or math.ceil(a.x * (N - 1)) + 1
       local end_i = floor(b.x * (N - 1) + 1.0000001)
-      if start_i < 1 then start_i = 1 end
-      if end_i > N then end_i = N end
-
       local inv_dx = 1 / dx
-      local ay, by = a.y, b.y
-      local midpoint = 0.5 * (ay + by)
-
-      local raw = curvs[seg] or 0.5
-      local d = raw - 0.5
-      local sign = (d >= 0) and 1 or -1
-      local m = abs(d) * 2
-      local power = 1 + skew_m(m) * (CURVE_POWER_MAX - 1)
-
-      for i = start_i, end_i do
-        local x = (i - 1) * invN
-        local t = (x - a.x) * inv_dx
-        if t < 0 then t = 0 elseif t > 1 then t = 1 end
-
-        local tn
-        if sign >= 0 then
-          tn = t ^ power
-        else
-          tn = 1 - (1 - t) ^ power
-        end
-
-        local omt = 1 - tn
-        vals[i] = omt * omt * ay + 2 * omt * tn * midpoint + tn * tn * by
+      for i = math.max(1, start_i), math.min(N, end_i) do
+        local t = ((i - 1) * invN - a.x) * inv_dx
+        vals[i] = segment_value(a, b, curvs[seg] or 0.5, metadata, t)
       end
     end
   end
@@ -238,7 +309,7 @@ function curve_editor:interpolate_values()
   self.current_values = {}
   self.base_values = {}
   self.results_values = {}
-  interpolate_points(self.points, self.curvatureOffsets, self.current_values, N)
+  interpolate_points(self.points, self.curvatureOffsets, self.current_values, N, self.segments)
   interpolate_points(self.base_points, self.base_curvatureOffsets, self.base_values, N)
   if self.full_range and not self.bipolar then
     mirror_sample_values(self.current_values, N)
@@ -277,6 +348,27 @@ function curve_editor:composite()
   end
 end
 
+function curve_editor:refresh()
+  self:interpolate_values()
+  self:output_curve()
+  self:output_state()
+  self:repaint()
+end
+
+function curve_editor:flush_pending()
+  if not self._pending then return false end
+  self.glmetro_pending = true
+  self:tick_update()
+  return true
+end
+
+function curve_editor:cancel_drag(flush)
+  if flush then self:flush_pending() end
+  self._pending, self.dragging = nil, nil
+  self.drag_start_y, self.drag_start_offset, self.drag_slope_sign = nil, nil, nil
+  self.dcclock_pending = true
+end
+
 function curve_editor:tick_update()
   if self.glmetro_pending == false then return end
   self.globalmetro:delay(8)
@@ -293,24 +385,27 @@ function curve_editor:tick_update()
         end
       end
     elseif p.type == "segment" then
-      if self.curvatureOffsets[p.index] ~= nil then
-        self.curvatureOffsets[p.index] = p.offset
+      local segment = self.segments[p.index]
+      if segment then
+        if segment.type == "tension" then
+          self.curvatureOffsets[p.index] = p.offset
+        else
+          segment[segment.type] = p.offset
+        end
       end
     end
     if self.full_range and not self.bipolar then
-      self.points, self.curvatureOffsets = mirror_positive(self.points, self.curvatureOffsets)
+      self.points, self.curvatureOffsets, self.segments = mirror_positive(self.points, self.curvatureOffsets, self.segments)
     end
     self._pending = nil
   end
 
-  self:interpolate_values()
-  self:output_curve()
-  self:output_state()
-  self:repaint()
+  self:refresh()
 end
 
 function curve_editor:glmetro()
   self.glmetro_pending = true
+  if self._pending then self:tick_update() end
 end
 
 function curve_editor:output_curve()
@@ -322,27 +417,17 @@ function curve_editor:output_curve()
 end
 
 function curve_editor:output_state()
-  local list = {}
-  local n = 0
-  -- Full-range header: magic, state version, range code, bipolar mode,
-  -- width, height. The remaining atoms are the ordinary shape payload.
-  if self.full_range then
-    n = 1; list[n] = STATE_MAGIC
-    n = n + 1; list[n] = STATE_VERSION
-    n = n + 1; list[n] = FULL_RANGE_CODE
-    n = n + 1; list[n] = self.bipolar and 1 or 0
-    n = n + 1; list[n] = self.width
-    n = n + 1; list[n] = self.height
-  end
+  local list = { STATE_MAGIC, STATE_VERSION, self.full_range and 1 or 0,
+    self.bipolar and 1 or 0, self.width, self.height, #self.points }
   for i, pt in ipairs(self.points) do
-    n = n + 1; list[n] = pt.x
-    n = n + 1; list[n] = pt.y
+    list[#list + 1] = pt.x
+    list[#list + 1] = pt.y
     if i < #self.points then
-      n = n + 1; list[n] = self.curvatureOffsets[i] or 0.5
+      local segment = self.segments[i]
+      list[#list + 1] = self.curvatureOffsets[i]
+      list[#list + 1] = TYPE_CODES[segment.type]
+      for j = 2, #TYPE_NAMES do list[#list + 1] = segment[TYPE_NAMES[j]] end
     end
-  end
-  if not self.full_range then
-    n = n + 1; list[n] = self.bipolar and 1 or 0
   end
   self:outlet(2, "list", list)
 end
@@ -358,7 +443,7 @@ end
 -- the curve currently on screen.
 local function parse_shape(atoms, first, last, label)
   local count = last - first + 1
-  if count < 2 or (count + 1) % 3 ~= 0 then
+  if count < 5 or (count + 1) % 3 ~= 0 then
     pd.post("curve-editor: " .. label .. " rejected: " .. count .. " shape atoms don't fit the x y bend triple format")
     return nil
   end
@@ -400,15 +485,15 @@ local function parse_shape(atoms, first, last, label)
   return pts, curvs
 end
 
-local function mark_full_range_points(points, label, require_center)
+local function mark_full_range_points(points, label, require_center, exact_center)
   label = label or "load"
-  if #points < 3 or not same(points[1].x, 0) or not same(points[#points].x, 1) then
+  if #points < (require_center and 3 or 2) or not same(points[1].x, 0) or not same(points[#points].x, 1) then
     pd.post("curve-editor: " .. label .. " rejected: full-range state needs exact x endpoints at 0 and 1")
     return false
   end
   local center = nil
   for i, pt in ipairs(points) do
-    if same(pt.x, 0.5) then center = i break end
+    if pt.x == 0.5 or (not exact_center and same(pt.x, 0.5)) then center = i break end
   end
   if not center and require_center then
     pd.post("curve-editor: " .. label .. " rejected: full-range state needs a point at x 0.5")
@@ -421,98 +506,140 @@ local function mark_full_range_points(points, label, require_center)
   return true
 end
 
-function curve_editor:load_state(atoms)
-  if not atoms or #atoms == 0 then return end
+local function reject(label, reason)
+  pd.post("curve-editor: " .. label .. " rejected: " .. reason)
+end
 
-  local full_range = finite_number(atoms[1]) == STATE_MAGIC
-  local bipolar = false
-  local width, height = self.width, self.height
-  local first, last = 1, #atoms
-  if full_range then
-    if finite_number(atoms[2]) ~= STATE_VERSION or finite_number(atoms[3]) ~= FULL_RANGE_CODE then
-      pd.post("curve-editor: load rejected: unsupported full-range state header")
+local function parse_v3(atoms, label)
+  local range, flag = finite_number(atoms[3]), finite_number(atoms[4])
+  local width, height = finite_number(atoms[5]), finite_number(atoms[6])
+  local count = finite_number(atoms[7])
+  if (range ~= 0 and range ~= 1) or (flag ~= 0 and flag ~= 1) or
+      not width or not height or width % 1 ~= 0 or height % 1 ~= 0 or
+      width < 80 or width > 2000 or height < 80 or height > 2000 or
+      (range == 0 and (width ~= 300 or height ~= 300)) then
+    reject(label, "invalid v3 range, mode or dimensions")
+    return
+  end
+  if not count or count % 1 ~= 0 or count < 2 or #atoms ~= 9 * count then
+    reject(label, "v3 point count does not match the complete payload")
+    return
+  end
+  local pts, bends, segments = {}, {}, {}
+  for i = 1, count do
+    local offset = 8 + (i - 1) * 9
+    local x, y = finite_number(atoms[offset]), finite_number(atoms[offset + 1])
+    if not x or not y or x < 0 or x > 1 or y < 0 or y > 1 or
+        (i > 1 and x <= pts[i - 1].x) then
+      reject(label, "v3 coordinates must be normalized with increasing x")
       return
     end
-    local flag = finite_number(atoms[4])
-    if not flag then
-      pd.post("curve-editor: load rejected: atom 4 is not a finite number (bipolar flag)")
-      return
-    end
-    bipolar = flag ~= 0
-    width = finite_number(atoms[5])
-    height = finite_number(atoms[6])
-    if not width or not height then
-      pd.post("curve-editor: load rejected: full-range size is not finite")
-      return
-    end
-    width = clamp(floor(width), 80, 2000)
-    height = clamp(floor(height), 80, 2000)
-    first = 7
-  else
-    if last % 3 == 0 then
-      local flag = finite_number(atoms[last])
-      if not flag then
-        pd.post("curve-editor: load rejected: atom " .. last .. " is not a finite number (bipolar flag)")
+    pts[i] = { x = x, y = y, fixed = i == 1 or i == count }
+    if i < count then
+      local raw, code = finite_number(atoms[offset + 2]), finite_number(atoms[offset + 3])
+      if not raw or raw < 0 or raw > 1 or not code or not TYPE_NAMES[code + 1] then
+        reject(label, "invalid v3 Tension bend or type code")
         return
       end
-      bipolar = flag ~= 0
-      last = last - 1
+      bends[i] = raw
+      local segment = { type = TYPE_NAMES[code + 1] }
+      for j = 2, #TYPE_NAMES do
+        local value = finite_number(atoms[offset + 2 + j])
+        if not value or value < 0 or value > 1 then
+          reject(label, "v3 type controls must be within 0..1")
+          return
+        end
+        segment[TYPE_NAMES[j]] = value
+      end
+      segments[i] = segment
     end
   end
-
-  local pts, curvs = parse_shape(atoms, first, last, "load")
-  if not pts then return end
-  if full_range then
-    if not mark_full_range_points(pts, "load", not bipolar) then return end
-    if not bipolar then pts, curvs = mirror_positive(pts, curvs) end
-  elseif self.full_range then
-    pts, curvs = legacy_to_full(pts, curvs)
-    full_range = true
-    -- The old trailing flag only controlled a crosshair. It must not turn a
-    -- legacy positive-only save into independently editable bipolar data.
-    bipolar = false
+  if pts[1].x ~= 0 or pts[count].x ~= 1 then
+    reject(label, "v3 state needs exact x endpoints at 0 and 1")
+    return
   end
+  return { points = pts, bends = bends, segments = segments,
+    full_range = range == 1, bipolar = flag == 1, width = width, height = height, explicit = true }
+end
 
-  self.full_range = full_range
-  self.bipolar = bipolar
-  self.width, self.height = width, height
-  self:set_size(width, height)
-  self.points, self.curvatureOffsets = pts, curvs
-  self:interpolate_values()
-  self:output_curve()
-  self:output_state()
-  self:repaint()
+local function parse_state(atoms, label)
+  if not atoms or #atoms == 0 then return end
+  local versioned = finite_number(atoms[1]) == STATE_MAGIC
+  local state
+  if versioned and finite_number(atoms[2]) == STATE_VERSION then
+    state = parse_v3(atoms, label)
+    if not state then return end
+  else
+    local full_range, bipolar = false, false
+    local first, last, width, height = 1, #atoms, 300, 300
+    if versioned then
+      if finite_number(atoms[2]) ~= 2 or finite_number(atoms[3]) ~= FULL_RANGE_CODE then
+        reject(label, "unsupported state header")
+        return
+      end
+      local flag = finite_number(atoms[4])
+      width, height = finite_number(atoms[5]), finite_number(atoms[6])
+      if not flag or not width or not height then
+        reject(label, "v2 mode and dimensions must be finite")
+        return
+      end
+      full_range, bipolar = true, flag ~= 0
+      width, height = clamp(floor(width), 80, 2000), clamp(floor(height), 80, 2000)
+      first = 7
+    elseif last % 3 == 0 then
+      local flag = finite_number(atoms[last])
+      if not flag then
+        reject(label, "trailing bipolar flag must be finite")
+        return
+      end
+      bipolar, last = flag ~= 0, last - 1
+    end
+    local pts, bends = parse_shape(atoms, first, last, label)
+    if not pts then return end
+    if pts[1].x ~= 0 or pts[#pts].x ~= 1 then
+      reject(label, "shape needs x endpoints at 0 and 1")
+      return
+    end
+    state = { points = pts, bends = bends, segments = default_segments(pts),
+      full_range = full_range, bipolar = bipolar, width = width, height = height }
+  end
+  if state.full_range and not mark_full_range_points(state.points, label, not state.bipolar, state.explicit) then return end
+  return state
+end
+
+function curve_editor:load_state(atoms)
+  local state = parse_state(atoms, "load")
+  if not state then return end
+  local pts, bends, segments = state.points, state.bends, state.segments
+  if state.full_range and not state.bipolar then
+    pts, bends, segments = mirror_positive(pts, bends, segments)
+  elseif not state.full_range and self.full_range and not state.explicit then
+    pts, bends, segments = legacy_to_full(pts, bends, segments)
+    state.full_range, state.bipolar = true, false
+    state.width, state.height = self.width, self.height
+  end
+  self:cancel_drag(false)
+  if state.full_range ~= self.full_range then
+    local convert = state.full_range and legacy_to_full or full_to_legacy
+    self.base_points, self.base_curvatureOffsets = convert(self.base_points, self.base_curvatureOffsets)
+  end
+  self.full_range, self.bipolar = state.full_range, state.bipolar
+  self.width, self.height = state.width, state.height
+  self:set_size(self.width, self.height)
+  self.points, self.curvatureOffsets, self.segments = pts, bends, segments
+  self:refresh()
 end
 
 function curve_editor:load_base_state(atoms)
-  if not atoms or #atoms == 0 then return end
-  local full_range = finite_number(atoms[1]) == STATE_MAGIC
-  local base_bipolar = false
-  local first, last = 1, #atoms
-  if full_range then
-    if finite_number(atoms[2]) ~= STATE_VERSION or finite_number(atoms[3]) ~= FULL_RANGE_CODE or
-        not finite_number(atoms[4]) or not finite_number(atoms[5]) or not finite_number(atoms[6]) then
-      pd.post("curve-editor: base load rejected: unsupported full-range state header")
-      return
-    end
-    base_bipolar = finite_number(atoms[4]) ~= 0
-    first = 7
-  elseif last % 3 == 0 then
-    if not finite_number(atoms[last]) then
-      pd.post("curve-editor: base load rejected: trailing bipolar flag is not a finite number")
-      return
-    end
-    last = last - 1
+  local state = parse_state(atoms, "base load")
+  if not state then return end
+  local pts, bends = state.points, state.bends
+  if state.full_range and not self.full_range then
+    pts, bends = full_to_legacy(pts, bends)
+  elseif not state.full_range and self.full_range then
+    pts, bends = legacy_to_full(pts, bends)
   end
-  local pts, curvs = parse_shape(atoms, first, last, "base load")
-  if not pts then return end
-  if full_range then
-    if not mark_full_range_points(pts, "base load", not base_bipolar) then return end
-    if not self.full_range then pts, curvs = full_to_legacy(pts, curvs) end
-  elseif self.full_range then
-    pts, curvs = legacy_to_full(pts, curvs)
-  end
-  self.base_points, self.base_curvatureOffsets = pts, curvs
+  self.base_points, self.base_curvatureOffsets = pts, bends
   self.has_base = true
   self:interpolate_values()
   self:output_curve()
@@ -557,6 +684,7 @@ function curve_editor:hit_test_segment(nx, ny)
 end
 
 function curve_editor:mouse_down(x, y)
+  self:flush_pending()
   local nx, ny = to_norm(self, x, y)
   nx = clamp(nx, 0, 1)
   ny = clamp(ny, 0, 1)
@@ -571,9 +699,11 @@ function curve_editor:mouse_down(x, y)
         table.remove(self.points, k)
         if k <= #self.curvatureOffsets then
           table.remove(self.curvatureOffsets, k)
+          table.remove(self.segments, k)
         end
         if k > 1 and self.curvatureOffsets[k - 1] then
           self.curvatureOffsets[k - 1] = 0.5
+          self.segments[k - 1].linear = 0.5
         end
       end
       self.dragging = nil
@@ -594,13 +724,14 @@ function curve_editor:mouse_down(x, y)
         nx = clamp(nx, self.points[1].x + POINT_GAP, self.points[#self.points].x - POINT_GAP)
         local newi = binsert_points(self.points, { x = nx, y = ny, fixed = false })
         table.insert(self.curvatureOffsets, newi, 0.5)
+        table.insert(self.segments, newi, new_segment())
         self.dragging = { type = "point", index = newi, x = nx, y = ny }
       else
         self.dragging = nil
       end
     end
     if self.full_range and not self.bipolar then
-      self.points, self.curvatureOffsets = mirror_positive(self.points, self.curvatureOffsets)
+      self.points, self.curvatureOffsets, self.segments = mirror_positive(self.points, self.curvatureOffsets, self.segments)
       if self.dragging and self.dragging.x then
         for i, pt in ipairs(self.points) do
           if same(pt.x, self.dragging.x) and same(pt.y, self.dragging.y) then
@@ -622,7 +753,8 @@ function curve_editor:mouse_down(x, y)
   self.dragging = hit
   if hit and hit.type == "segment" then
     self.drag_start_y = ny
-    self.drag_start_offset = self.curvatureOffsets[hit.index] or 0.5
+    local segment = self.segments[hit.index]
+    self.drag_start_offset = segment.type == "tension" and self.curvatureOffsets[hit.index] or segment[segment.type]
     local a, b = self.points[hit.index], self.points[hit.index + 1]
     self.drag_slope_sign = ((b.y - a.y) >= 0) and 1 or -1
   end
@@ -648,26 +780,20 @@ function curve_editor:mouse_drag(x, y)
     local pt = self.points[i]
     local free_center = pt.center and self.full_range and self.bipolar
     if pt.fixed and not free_center then
-      if not same(ny, pt.y) then
-        self._pending = { type = "point", index = i, x = pt.x, y = ny }
-      end
+      self._pending = { type = "point", index = i, x = pt.x, y = ny }
     else
       local left, right = self.points[i - 1], self.points[i + 1]
       local minx = left and (left.x + POINT_GAP) or 0
       local maxx = right and (right.x - POINT_GAP) or 1
       local newx = clamp(nx, minx, maxx)
-      if not (same(newx, pt.x) and same(ny, pt.y)) then
-        self._pending = { type = "point", index = i, x = newx, y = ny }
-      end
+      self._pending = { type = "point", index = i, x = newx, y = ny }
     end
   elseif self.dragging.type == "segment" then
     local idx = self.dragging.index
     if self.drag_start_y and self.drag_start_offset then
-      local sgn = self.drag_slope_sign or 1
-      local new_off = clamp(self.drag_start_offset - (ny - self.drag_start_y) * (SEGMENT_SENSITIVITY * (self.snap_enabled and 0.5 or 1.0)) * sgn, 0, 1)
-      if not same(new_off, self.curvatureOffsets[idx]) then
-        self._pending = { type = "segment", index = idx, offset = new_off }
-      end
+      local direction = self.segments[idx].type == "tension" and -self.drag_slope_sign or 1
+      local new_off = clamp(self.drag_start_offset + (ny - self.drag_start_y) * SEGMENT_SENSITIVITY * (self.snap_enabled and 0.5 or 1) * direction, 0, 1)
+      self._pending = { type = "segment", index = idx, offset = new_off }
     end
   end
 
@@ -675,6 +801,7 @@ function curve_editor:mouse_drag(x, y)
 end
 
 function curve_editor:mouse_up()
+  self:flush_pending()
   self.dragging = nil
   self.drag_start_y = nil
   self.drag_start_offset = nil
@@ -685,7 +812,10 @@ function curve_editor:mouse_up()
 end
 
 function curve_editor:in_1_bang()
-  self:output_curve()
+  if not self:flush_pending() then
+    self:output_curve()
+    self:output_state()
+  end
 end
 
 function curve_editor:in_1_snap(atoms)
@@ -697,31 +827,93 @@ function curve_editor:in_1_grid(atoms)
   self:repaint()
 end
 
+function curve_editor:in_1_type(atoms)
+  if atoms[3] ~= nil then
+    pd.post("curve-editor: type rejected: expected segment index and type name")
+    return
+  end
+  local index = finite_number(atoms[1])
+  if not index or index % 1 ~= 0 or index < 1 or index > #self.segments then
+    pd.post("curve-editor: type rejected: segment index out of range")
+    return
+  end
+  if self.full_range and not self.bipolar and self.points[index + 1].x <= 0.5 then
+    pd.post("curve-editor: type rejected: cannot edit ghost segment")
+    return
+  end
+  local name = atoms[2]
+  if not name or not TYPE_CODES[name] then
+    pd.post("curve-editor: type rejected: unknown segment type")
+    return
+  end
+  self:cancel_drag(true)
+  self.segments[index].type = name
+  if self.full_range and not self.bipolar then
+    self.points, self.curvatureOffsets, self.segments = mirror_positive(self.points, self.curvatureOffsets, self.segments)
+  end
+  self:refresh()
+end
+
+function curve_editor:in_1_bend(atoms)
+  if atoms[3] ~= nil then
+    pd.post("curve-editor: bend rejected: expected segment index and value")
+    return
+  end
+  local index = finite_number(atoms[1])
+  if not index or index % 1 ~= 0 or index < 1 or index > #self.segments then
+    pd.post("curve-editor: bend rejected: segment index out of range")
+    return
+  end
+  if self.full_range and not self.bipolar and self.points[index + 1].x <= 0.5 then
+    pd.post("curve-editor: bend rejected: cannot edit ghost segment")
+    return
+  end
+  local value = finite_number(atoms[2])
+  if not value or value < 0 or value > 1 then
+    pd.post("curve-editor: bend rejected: value must be 0..1")
+    return
+  end
+  self:cancel_drag(true)
+  local segment = self.segments[index]
+  if segment.type == "tension" then
+    local a, b = self.points[index], self.points[index + 1]
+    self.curvatureOffsets[index] = b.y >= a.y and 1 - value or value
+  else
+    segment[segment.type] = value
+  end
+  if self.full_range and not self.bipolar then
+    self.points, self.curvatureOffsets, self.segments = mirror_positive(self.points, self.curvatureOffsets, self.segments)
+  end
+  self:refresh()
+end
+
 function curve_editor:in_1_bipolar(atoms)
   local enabled = (finite_number(atoms[1]) or 0) ~= 0
+  self:cancel_drag(true)
   if self.full_range and not enabled then
-    self.points, self.curvatureOffsets = mirror_positive(self.points, self.curvatureOffsets)
+    self.points, self.curvatureOffsets, self.segments = mirror_positive(self.points, self.curvatureOffsets, self.segments)
   end
   self.bipolar = enabled
   if self.full_range then
     self:interpolate_values()
     self:output_curve()
-    self:output_state()
   end
+  self:output_state()
   self:repaint()
 end
 
 function curve_editor:in_1_fullrange(atoms)
   local enabled = (finite_number(atoms[1]) or 0) ~= 0
   if enabled == self.full_range then return end
+  self:cancel_drag(true)
 
   if enabled then
-    self.points, self.curvatureOffsets = legacy_to_full(self.points, self.curvatureOffsets)
+    self.points, self.curvatureOffsets, self.segments = legacy_to_full(self.points, self.curvatureOffsets, self.segments)
     self.base_points, self.base_curvatureOffsets = legacy_to_full(self.base_points, self.base_curvatureOffsets)
     self.full_range = true
     self.bipolar = false
   else
-    self.points, self.curvatureOffsets = full_to_legacy(self.points, self.curvatureOffsets)
+    self.points, self.curvatureOffsets, self.segments = full_to_legacy(self.points, self.curvatureOffsets, self.segments)
     self.base_points, self.base_curvatureOffsets = full_to_legacy(self.base_points, self.base_curvatureOffsets)
     self.full_range = false
     self.bipolar = false
@@ -739,6 +931,7 @@ function curve_editor:in_1_size(atoms)
     pd.post("curve-editor: size ignored: enable fullrange first")
     return
   end
+  self:cancel_drag(true)
   local width = floor(finite_number(atoms[1]) or self.width)
   local height = floor(finite_number(atoms[2]) or width)
   self.width = clamp(width, 80, 2000)
@@ -813,6 +1006,45 @@ local function stroke_values(g, values, first, last, N, dw, dh, color, thickness
   g:stroke_path(p, thickness)
 end
 
+local function segment_path(a, b, raw, segment, dw, dh, reflected)
+  local path
+  local function add(t, y)
+    local x = a.x + (b.x - a.x) * t
+    if reflected then x, y = 1 - x, 1 - y end
+    x, y = INSET + x * dw, INSET + (1 - y) * dh
+    if path then path:line_to(x, y) else path = Path(x, y) end
+  end
+  local kind = segment.type
+  add(0, a.y)
+  if kind == "square" or kind == "stairs" then
+    local count = segment_count(segment)
+    local lower = kind == "stairs" and segment.stairs < 0.5
+    local bins = kind == "square" and 2 * count or (lower and count - 1 or count + 1)
+    for j = 0, bins - 1 do
+      local level
+      if kind == "square" then
+        level = (j + (segment.square >= 0.5 and 1 or 0)) % 2
+      else
+        level = lower and (j + 0.5) / bins or j / count
+      end
+      local y = a.y + (b.y - a.y) * level
+      add(j / bins, y)
+      add((j + 1) / bins, y)
+    end
+  else
+    local steps = kind == "linear" and 2 or
+      kind == "triangle" and segment_count(segment) or
+      kind == "sine" and segment_count(segment) * 16 or
+      math.max(32, math.ceil((b.x - a.x) * dw))
+    for j = 1, steps - 1 do
+      local t = j / steps
+      add(t, segment_value(a, b, raw, segment, t))
+    end
+  end
+  add(1, b.y)
+  return path
+end
+
 function curve_editor:paint(g)
   local width, height = self:get_size()
   local dw = width - 2 * INSET
@@ -844,17 +1076,27 @@ function curve_editor:paint(g)
   local N = sample_count(self)
 
   local rvals = self.results_values
-  if self.has_base or not self.full_range then
+  if self.has_base then
     stroke_values(g, rvals, 1, N, N, dw, dh, COLORS.results, 3)
   end
 
-  local vals = self.current_values
-  if self.full_range and not self.bipolar then
-    local center = (N + 1) // 2
-    stroke_values(g, vals, 1, center, N, dw, dh, COLORS.ghost, 2, 1 - (vals[center] or 0.5))
-    stroke_values(g, vals, center, N, N, dw, dh, COLORS.curve, 4)
-  else
-    stroke_values(g, vals, 1, N, N, dw, dh, COLORS.curve, 4)
+  for i, segment in ipairs(self.segments) do
+    local a, b = self.points[i], self.points[i + 1]
+    if not (self.full_range and not self.bipolar and b.x <= 0.5) then
+      local thickness = 4
+      if segment.type ~= "tension" and segment.type ~= "linear" then
+        local count = segment_count(segment)
+        local features = segment.type == "square" and 2 * count or
+          segment.type == "stairs" and count + 1 or count
+        thickness = clamp((b.x - a.x) * dw / features * 0.45, 1, 4)
+      end
+      if self.full_range and not self.bipolar then
+        use_color(g, COLORS.ghost)
+        g:stroke_path(segment_path(a, b, self.curvatureOffsets[i], segment, dw, dh, true), math.min(2, thickness))
+      end
+      use_color(g, COLORS.curve)
+      g:stroke_path(segment_path(a, b, self.curvatureOffsets[i], segment, dw, dh), thickness)
+    end
   end
 
   use_color(g, COLORS.point)

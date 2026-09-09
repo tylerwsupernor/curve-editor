@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 (unreleased)
+
+I added Linear, Square, Triangle, Sine, and Stairs alongside the existing Tension segments. Numbered `type` and `bend` messages target each segment, and dragging between points operates its current type. Each type keeps its own control setting through switches and saved state. Tension's sample values and mouse response stay unchanged.
+
+Both range modes now save numeric v3 state with every segment type and inactive control. Old unversioned and v2 presets still load as Tension. Symmetric edits reflect from the positive side, and ghost segments reject numbered messages. The drawing includes exact corners, peaks, and vertical jumps; the output remains 257 or 513 samples.
+
+The help, test, and waveshaper patches expose the new controls. A separate two-segment example demonstrates independent targeting. The test and help arrays resize with the output, and the updated patches use local array names. I also connected the waveshaper's saturation preset, which was present but unwired.
+
 ## 1.2.1
 
 Help patch rebuild and a comment fix, no behavior change. The color block header in `curve-editor.pd_lua` no longer names a specific host patch or palette. The help patch covers every inlet message with clickable buttons in labeled groups, corrects the end-dot text (pinned sideways, free vertically), and wires up the size demo, which was never connected.
