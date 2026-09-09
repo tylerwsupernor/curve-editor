@@ -1,12 +1,10 @@
 # Changelog
 
-## 1.3.0 (unreleased)
+## 1.3.0
 
-I added Linear, Square, Triangle, Sine, and Stairs alongside the existing Tension segments. Numbered `type` and `bend` messages target each segment, and dragging between points operates its current type. Each type keeps its own control setting through switches and saved state. Tension's sample values and mouse response stay unchanged.
+I added Linear, Square, Triangle, Sine, and Stairs segment types as options alongside the original behavior, now known as Tension. The building block works as before until a patch asks for them: numbered `type` and `bend` messages target each segment, and each type keeps its own control setting through switches and saved state.
 
-Both range modes now save numeric v3 state with every segment type and inactive control. Old unversioned and v2 presets still load as Tension. Symmetric edits reflect from the positive side, and ghost segments reject numbered messages. The drawing includes exact corners, peaks, and vertical jumps; the output remains 257 or 513 samples.
-
-The help, test, and waveshaper patches expose the new controls. A separate two-segment example demonstrates independent targeting. The test and help arrays resize with the output, and the updated patches use local array names. I also connected the waveshaper's saturation preset, which was present but unwired.
+New saves remember every segment's type and control settings in both editor flavors, and old presets still load as Tension. The output stays 257 or 513 samples. The help, test, and waveshaper patches expose the new controls, with a two-segment example showing independent targeting. I also connected the waveshaper's saturation preset, which was present but unwired.
 
 ## 1.2.1
 
