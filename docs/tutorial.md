@@ -10,7 +10,7 @@ This assumes the two files from the README install (`curve-editor.pd_lua` and `c
 2. Put an array in it: Put menu, then Array. Name it `shape`, size 513 points. Leave the other settings alone.
 3. Why 513: the full-range editor keeps 256 intervals on each side of zero, plus one exact center sample. The normalized array still covers 0 to 1 internally, but it represents a bipolar -1 to +1 transfer function.
 
-Array names are shared across every open patch in the session. If something else already uses `shape`, pick another name. The examples use long names like `curve-editor-shape` for exactly this reason.
+Array names are shared across every open patch in the session. If something else already uses `shape`, pick another name. The examples prefix theirs (`$0-shape` in most, `curve-editor-lfo` in the LFO) so each open copy stays on its own array.
 
 ## 2. The control side
 

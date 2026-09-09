@@ -1,4 +1,4 @@
-# Segment types in 1.3.0
+# Segment types
 
 I added six segment types to the existing inlet. Each segment keeps its settings when its type changes. Tension remains the default, with the same bend math and mouse response as 1.2.1.
 

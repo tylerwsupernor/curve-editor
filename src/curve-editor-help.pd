@@ -63,7 +63,7 @@
 #X text 20 812 Left outlet: 257 legacy. 513 fullrange. Values 0 to 1.;
 #X text 20 832 Fullrange: 0 is -1. 0.5 is 0. 1 is +1.;
 #X text 20 852 Right outlet: raw state for [daw_storage].;
-#X text 20 872 Both range modes now save numeric v3 state.;
+#X text 20 872 Both range modes save numeric v3 state.;
 #X text 20 892 State starts -271828 3 then range and mode.;
 #X text 20 912 Types and inactive bends save with the shape.;
 #X text 20 932 Plugin restores on reopen. Standalone does not.;

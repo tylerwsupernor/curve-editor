@@ -30,4 +30,4 @@
 #X text 60 423 The curve values 0 to 1 set the volume of a 220 Hz tone.;
 #X text 60 441 The LFO runs at half a cycle per second. Hear it repeat.;
 #X text 60 465 Turn the volume down before you press play.;
-#X text 60 483 Preset box loads a saved shape. Format is x y bend triples.;
+#X text 60 483 Preset box loads a saved shape. Old lists still load as Tension.;

@@ -4,7 +4,7 @@ A curve editor for plugdata, written in Lua with pdlua. Place points, drag them 
 
 Plugdata doesn't have anything like this as a stock object. 'curve-editor' is a reusable building block. Copy two files next to your patch, wire the inlets and outlets, and it slots in like any other Pd object.
 
-This build adds six segment types: Tension, Linear, Square, Triangle, Sine, and Stairs. Each segment retains its controls when its type changes. Dragging, double-click add and remove, live output, snap, grid, full-range waveshaping, and `[daw_storage]` still work. Tension stays the default with the same sample values and mouse response as 1.2.1.
+This has six segment types: Tension, Linear, Square, Triangle, Sine, and Stairs. Each segment retains its controls when its type changes. Dragging, double-click add and remove, live output, snap, grid, full-range waveshaping, and `[daw_storage]` still work. Tension stays the default with the same sample values and mouse response as 1.2.1.
 
 What ships: the object, a right-click help patch with clickable controls, a self-test patch (`src/curve-editor-test.pd`), LFO and waveshaper examples, a [two-segment controls example](examples/segment-controls.pd), and a [waveshaper tutorial](docs/tutorial.md).
 
@@ -40,7 +40,7 @@ The grid draws at 0.6 opacity. Grid opacity and color are set in `curve-editor.p
 
 `type i tension|linear|square|triangle|sine|stairs` sets segment i's type. `bend i h` sets its active control from 0 to 1. Segments count left to right from 1; the default full-range positive segment is 2. Ghost segments reject edits, and adding or removing points renumbers later segments. Upward dragging increases h. Square and Stairs reach maximum density at 0.5; Triangle and Sine at 1. Switching types restores each type's previous bend.
 
-The classic curve leaves the left outlet as 257 numbers between 0 and 1. Full-range mode sends 513. Both modes now save numeric v3 state on outlet 2: `-271828 3 range bipolar width height point_count`, then one nine-number record per segment and the final anchor's x and y. Every inactive control is saved too. Old unversioned and v2 states still load as Tension. The complete layout, formulas, and numbering rules are in [segment types](docs/segment-types.md).
+The classic curve leaves the left outlet as 257 numbers between 0 and 1. Full-range mode sends 513. Both modes save numeric v3 state on outlet 2: `-271828 3 range bipolar width height point_count`, then one nine-number record per segment and the final anchor's x and y. Every inactive control is saved too. Old unversioned and v2 states still load as Tension. The complete layout, formulas, and numbering rules are in [segment types](docs/segment-types.md).
 
 ## Current limitations
 
